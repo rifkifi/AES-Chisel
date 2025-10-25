@@ -1,0 +1,105 @@
+import chisel3._
+import chiseltest._
+import org.scalatest.flatspec.AnyFlatSpec
+
+class AESTest extends AnyFlatSpec with ChiselScalatestTester {
+  behavior of "AES" 
+  it should "Using 256 bit key to encrypt message correctly" in {
+    test(new AES(key_size = 256)) { dut =>
+      println("Testing AES256 functionality")
+      val block = AESHelper.pkcs7PadMessage("abc")
+      println(f"in data: ${block}%d")
+      assert(
+        block == BigInt("6162630d0d0d0d0d0d0d0d0d0d0d0d0d", 16),
+        "Padded message does not match expected value"
+      )
+      dut.io.start.poke(true.B)
+      dut.io.in_key.poke(
+        "h603deb1015ca71be2b73aef0857d77811f352c073b6108d72d9810a30914dff4".U(
+          256.W
+        )
+      )
+      dut.io.in_data.poke(block.U(128.W))
+      dut.clock.step()
+      dut.io.start.poke(false.B)
+      while (!dut.io.done.peek().litToBoolean) { dut.clock.step(1) }
+      println(f"Output: ${dut.io.out.peek().litValue}%x")
+      
+      val expected = "hF0E5A0466A99BCFFBAE804580F1E6A73".U
+      dut.io.out.expect(expected)
+    }
+  }
+
+  it should "Using 192 bit key to encrypt message correctly" in {
+    test(new AES(key_size = 192)) { dut =>
+      println("Testing AES192 functionality")
+      val block = AESHelper.pkcs7PadMessage("abc")
+      println(f"in data: ${block}%d")
+      assert(
+        block == BigInt("6162630d0d0d0d0d0d0d0d0d0d0d0d0d", 16),
+        "Padded message does not match expected value"
+      )
+      dut.io.start.poke(true.B)
+      dut.io.in_key.poke(
+        "h8e73b0f7da0e6452c810f32b809079e562f8ead2522c6b7b".U(
+          192.W
+        )
+      )
+      dut.io.in_data.poke(block.U(128.W))
+      dut.clock.step()
+      dut.io.start.poke(false.B)
+      while (!dut.io.done.peek().litToBoolean) { dut.clock.step(1) }
+      println(f"Output: ${dut.io.out.peek().litValue}%x")
+      
+      val expected = "hF38420F1AD58A7690649964986E6CC8F".U
+      dut.io.out.expect(expected)
+    }
+  }
+
+  it should "Using 128 bit key to encrypt message correctly" in {
+    test(new AES(key_size = 128)) { dut =>
+      println("Testing AES128 functionality")
+      val block = AESHelper.pkcs7PadMessage("abc")
+      println(f"in data: ${block}%d")
+      assert(
+        block == BigInt("6162630d0d0d0d0d0d0d0d0d0d0d0d0d", 16),
+        "Padded message does not match expected value"
+      )
+      dut.io.start.poke(true.B)
+      dut.io.in_key.poke(
+        "h2b7e151628aed2a6abf7158809cf4f3c".U(
+          128.W
+        )
+      )
+      dut.io.in_data.poke(block.U(128.W))
+      dut.clock.step()
+      dut.io.start.poke(false.B)
+      while (!dut.io.done.peek().litToBoolean) { dut.clock.step(1) }
+      println(f"Output: ${dut.io.out.peek().litValue}%x")
+      
+      val expected = "h0DA7D34A2C0C32BD408E96DBD66F3FFE".U
+      dut.io.out.expect(expected)
+    }
+  }
+}
+
+// Helper functions
+object AESHelper{
+  // Returns PKCS#7 padding length (0<pad<=16) for AES 16-byte blocks
+  def pkcs7PadLen(message: String, blockSize: Int = 16): Int = {
+    val len = message.getBytes("UTF-8").length
+    val rem = len % blockSize
+    if (rem == 0) blockSize else blockSize - rem
+  }
+
+  // Builds a single 16-byte PKCS#7-padded block as BigInt (MSB-first) for UInt(128.W)
+  // Supports messages up to 16 bytes. Throws if longer.
+  def pkcs7PadMessage(message: String, blockSize: Int = 16): BigInt = {
+    require(blockSize == 16, "AES block size must be 16 bytes")
+    val bytes = message.getBytes("UTF-8")
+    require(bytes.length <= blockSize, s"Message too long for single block: ${bytes.length} bytes")
+    val pad = pkcs7PadLen(message, blockSize)
+    val padded = bytes ++ Array.fill(pad)(pad.toByte)
+    padded.foldLeft(BigInt(0)) { (acc, b) => (acc << 8) | BigInt(b & 0xff) }
+  }
+}
